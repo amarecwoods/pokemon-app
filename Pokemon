@@ -1,0 +1,114 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
+import requests
+import pokebase as pb
+from io import BytesIO
+
+class CustomMessageBox(tk.Toplevel):
+    def __init__(self, parent, title, info_message, image):
+        super().__init__(parent)
+        self.title(title)
+
+        label = ttk.Label(self, text=info_message)
+        label.pack(padx=10, pady=10)
+
+        if image:
+            image_label = ttk.Label(self, image=image)
+            image_label.image = image  # Keep a reference to the image
+            image_label.pack(padx=10, pady=10)
+
+def get_pokemon_info(pokemon_name):
+    try:
+        pokemon = pb.pokemon(pokemon_name.lower())
+        return pokemon
+    except pb.exceptions.PokebaseError as e:
+        print(f"PokebaseError: Unable to fetch evolution information. {e}")
+        return "Unknown"
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return "Unknown"
+
+
+class PokemonApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Pokemon App")
+        self.image = None  # Store the PhotoImage instance
+
+        self.pokemon_name_label = ttk.Label(root, text="Enter Pokemon Name:")
+        self.pokemon_name_entry = ttk.Entry(root)
+        self.submit_button = ttk.Button(root, text="Submit", command=self.on_submit)
+
+        self.pokemon_name_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.pokemon_name_entry.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        self.submit_button.grid(row=1, column=0, columnspan=2, pady=20)
+
+    def on_submit(self):
+        pokemon_name = self.pokemon_name_entry.get()
+        pokemon_info = get_pokemon_info(pokemon_name)
+
+        if pokemon_info:
+            sprite_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pokemon_info.id}.png"
+            self.image = self.get_image_from_url(sprite_url)
+
+            if self.image:
+                info_message = (
+                    f"Name: {pokemon_info.name.capitalize()}\n"
+                    f"Height: {self.convert_decimeters_to_feet(pokemon_info.height)} feet\n"
+                    f"Weight: {self.convert_hectograms_to_pounds(pokemon_info.weight)} lbs\n"
+                    f"Abilities: {', '.join([ability.ability.name for ability in pokemon_info.abilities])}\n"
+                    f"Evolves into: {self.get_evolution_info(pokemon_info)}"
+                )
+
+                # Use the custom messagebox
+                CustomMessageBox(self.root, "Pokemon Information", info_message, self.image)
+            else:
+                messagebox.showinfo("Error", "Failed to load the Pokemon image.")
+        else:
+            messagebox.showinfo("Error", f"Pokemon '{pokemon_name}' not found.")
+
+    def get_image_from_url(self, url):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Check for HTTP errors
+            img = Image.open(BytesIO(response.content))
+            img.thumbnail((100, 100))
+            return ImageTk.PhotoImage(img)
+        except Exception as e:
+            print(f"Error loading image: {str(e)}")
+            return None
+
+    def convert_decimeters_to_feet(self, decimeters):
+        # Convert decimeters to feet (1 decimeter = 0.328084 feet)
+        return round(decimeters * 0.328084, 2)
+
+    def convert_hectograms_to_pounds(self, hectograms):
+        # Convert hectograms to pounds (1 hectogram = 0.220462 pounds)
+        return round(hectograms * 0.220462, 2)
+
+    def get_evolution_info(self, pokemon_info):
+        try:
+            # Get the evolution chain for the Pokemon
+            evolution_chain = pb.evolution_chain(pokemon_info.species.url)
+
+            # Extract evolution information
+            evolution_info = []
+            current_evolution = evolution_chain.chain
+            while current_evolution and 'species' in current_evolution:
+                evolution_info.append(current_evolution['species']['name'].capitalize())
+                if 'evolves_to' in current_evolution and current_evolution['evolves_to']:
+                    current_evolution = current_evolution['evolves_to'][0]
+                else:
+                    break
+
+            return ', '.join(evolution_info) if evolution_info else "None"
+        except Exception as e:
+            print(f"An unexpected error occurred: {type(e).__name__} - {str(e)}")
+            return "Unknown"
+
+
+root = tk.Tk()
+app = PokemonApp(root)
+root.mainloop()
+
