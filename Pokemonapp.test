@@ -1,0 +1,70 @@
+import unittest
+import tkinter as tk
+import sys
+import os
+
+# Get the directory of the current script
+current_dir = os.path.dirname(os.path.abspath('/Users/amarewoods/Python-Test/PokemonApp.py'))
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.abspath(current_dir))
+
+from unittest.mock import patch, Mock
+from PokemonApp import PokemonApp  # Update the import statement here
+
+
+class TestPokemonApp(unittest.TestCase):
+    def setUp(self):
+        self.root = tk.Tk()
+        self.app = PokemonApp(self.root)
+
+    def tearDown(self):
+        self.root.destroy()
+
+    @patch('PokemonApp.get_pokemon_info')
+    @patch('PokemonApp.CustomMessageBox')
+    @patch('PokemonApp.PokemonApp.get_image_from_url')
+    def test_on_submit_with_valid_pokemon(
+            self, mock_get_image_from_url, mock_custom_messagebox, mock_get_pokemon_info):
+        # Mocking get_pokemon_info to return a valid pokemon_info
+        mock_pokemon_info = create_mock_pokemon_info()
+        mock_get_pokemon_info.return_value = mock_pokemon_info
+
+        # Mocking CustomMessageBox
+        mock_image = Mock()
+        mock_custom_messagebox.return_value = MockCustomMessageBox(mock_image)
+
+        # Mocking get_image_from_url to return a mock image
+        mock_get_image_from_url.return_value = Mock()
+
+        # Set the entry value
+        self.app.pokemon_name_entry.insert(0, 'pikachu')
+
+        # Call on_submit
+        self.app.on_submit()
+
+        # Assertions
+        mock_get_pokemon_info.assert_called_with('pikachu')
+        mock_custom_messagebox.assert_called_with(self.root, "Pokemon Information", Mock(), Mock())
+
+# Mock CustomMessageBox to avoid actual GUI interactions during testing
+class MockCustomMessageBox:
+    def __init__(self, image):
+        self.image = image
+
+    def show(self):
+        # Mimic the behavior of showing the messagebox
+        pass
+
+# Mock function to return a mock Pokemon info for testing purposes
+def create_mock_pokemon_info():
+    mock_pokemon_info = Mock()
+    mock_pokemon_info.name = 'Pikachu'
+    mock_pokemon_info.height = 4
+    mock_pokemon_info.weight = 60
+    mock_pokemon_info.abilities = [Mock(ability=Mock(name='ability1')), Mock(ability=Mock(name='ability2'))]
+    return mock_pokemon_info
+
+if __name__ == '__main__':
+    unittest.main()
+
